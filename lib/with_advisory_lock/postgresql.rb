@@ -7,6 +7,19 @@ module WithAdvisoryLock
 
     def release_lock
       execute_successful?('pg_advisory_unlock')
+    rescue ActiveRecord::StatementInvalid => e
+      e = e.respond_to?(:cause) ? e.cause : e.original_exception
+      if e.respond_to?(:sql_exception)
+        raise unless e.sql_exception.sql_state == '25P02'
+      else
+        raise unless e.is_a? PG::InFailedSqlTransaction
+      end
+      begin
+        connection.rollback_db_transaction
+        execute_successful?('pg_advisory_unlock')
+      ensure
+        connection.begin_db_transaction
+      end
     end
 
     def execute_successful?(pg_function)
