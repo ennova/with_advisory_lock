@@ -2,11 +2,13 @@ module WithAdvisoryLock
   class PostgreSQL < Base
     # See http://www.postgresql.org/docs/9.1/static/functions-admin.html#FUNCTIONS-ADVISORY-LOCKS
     def try_lock
-      execute_successful?('pg_try_advisory_lock')
+      pg_function = "pg_try_advisory_lock#{shared ? '_shared' : ''}"
+      execute_successful?(pg_function)
     end
 
     def release_lock
-      execute_successful?('pg_advisory_unlock')
+      pg_function = "pg_advisory_unlock#{shared ? '_shared' : ''}"
+      execute_successful?(pg_function)
     rescue ActiveRecord::StatementInvalid => e
       e = e.respond_to?(:cause) ? e.cause : e.original_exception
       if e.respond_to?(:sql_exception)
@@ -16,7 +18,7 @@ module WithAdvisoryLock
       end
       begin
         connection.rollback_db_transaction
-        execute_successful?('pg_advisory_unlock')
+        execute_successful?(pg_function)
       ensure
         connection.begin_db_transaction
       end
